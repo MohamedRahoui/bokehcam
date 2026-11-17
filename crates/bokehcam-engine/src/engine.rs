@@ -13,12 +13,12 @@ use std::time::{Duration, Instant, SystemTime};
 
 use bokehcam_core::Config;
 use bokehcam_core::schema::Apply;
-use bokehcam_gpu::{FrameParams, Gpu, Renderer, Sizes};
-use bokehcam_infer::{Choice, Segmenter};
+use bokehcam_gpu::FrameParams;
 use bokehcam_media::{CaptureFormat, Decoder, Frame, MediaError};
 
 use crate::EngineError;
 use crate::devices::{Devices, FrameSink, SystemDevices};
+use crate::picture::{ModelRequest, Picture, PictureStages, SystemPictureStages};
 use crate::status::{Preview, State, Status, Timer};
 
 /// How long to wait before retrying after a failure (camera busy, device missing ...).
@@ -97,11 +97,16 @@ impl Engine {
     /// Start the pipeline. When `config_path` is given, that file is watched
     /// for changes and receives configs set through [`Self::set_config`].
     pub fn start(config: Config, config_path: Option<PathBuf>) -> Self {
-        Self::start_with(config, config_path, Arc::new(SystemDevices))
+        Self::start_with(config, config_path, Arc::new(SystemDevices), Arc::new(SystemPictureStages))
     }
 
-    /// Start the pipeline on the given devices.
-    pub(crate) fn start_with(config: Config, config_path: Option<PathBuf>, devices: Arc<dyn Devices>) -> Self {
+    /// Start the pipeline on the given devices and picture stages.
+    pub(crate) fn start_with(
+        config: Config,
+        config_path: Option<PathBuf>,
+        devices: Arc<dyn Devices>,
+        stages: Arc<dyn PictureStages>,
+    ) -> Self {
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             config: Mutex::new(config),
@@ -116,7 +121,7 @@ impl Engine {
             .name("bokehcam-worker".into())
             .spawn({
                 let shared = shared.clone();
-                move || worker(&shared, config_path.as_deref(), &*devices)
+                move || worker(&shared, config_path.as_deref(), &*devices, &*stages)
             })
             .expect("cannot start a thread");
         Self { shared, worker: Mutex::new(Some(worker)) }
@@ -185,20 +190,18 @@ enum Next {
 
 struct Context<'a> {
     shared: &'a Shared,
-    gpu: &'a Gpu,
     devices: &'a dyn Devices,
+    picture: Box<dyn Picture>,
     config_path: Option<&'a Path>,
     config_seen: Option<SystemTime>,
-    /// The loaded model, kept across camera restarts.
-    segmenter: Option<Segmenter>,
-    /// The (model, backend, threads, fps) the segmenter was loaded for.
-    segmenter_key: Option<(String, String, u32, u32)>,
+    /// The model that is loaded, if any; it is kept across camera restarts.
+    model: Option<ModelRequest>,
 }
 
-fn worker(shared: &Shared, config_path: Option<&Path>, devices: &dyn Devices) {
-    let gpu = loop {
-        match Gpu::new() {
-            Ok(gpu) => break gpu,
+fn worker(shared: &Shared, config_path: Option<&Path>, devices: &dyn Devices, stages: &dyn PictureStages) {
+    let picture = loop {
+        match stages.open() {
+            Ok(picture) => break picture,
             Err(e) => {
                 shared.set_state(State::Problem(e.to_string()));
                 if !shared.pause(RETRY * 2) {
@@ -207,16 +210,9 @@ fn worker(shared: &Shared, config_path: Option<&Path>, devices: &dyn Devices) {
             }
         }
     };
-    lock(&shared.status).graphics = format!("{} ({})", gpu.info().name, gpu.info().backend);
-    let mut context = Context {
-        shared,
-        gpu: &gpu,
-        devices,
-        config_path,
-        config_seen: config_path.and_then(modified),
-        segmenter: None,
-        segmenter_key: None,
-    };
+    lock(&shared.status).graphics = picture.graphics();
+    let mut context =
+        Context { shared, devices, picture, config_path, config_seen: config_path.and_then(modified), model: None };
     while !shared.stopping() {
         match context.serve() {
             Ok(Next::Restart) => continue,
@@ -344,32 +340,29 @@ impl Context<'_> {
 
     /// Make sure the configured model is loaded. A missing or failing model
     /// is reported but not fatal: the picture is delivered without blur.
-    fn ensure_segmenter(&mut self, config: &Config) -> Option<String> {
+    fn ensure_model(&mut self, config: &Config) -> Option<String> {
         if config.background.mode != "blur" {
-            self.segmenter = None;
-            self.segmenter_key = None;
+            self.picture.drop_model();
+            self.model = None;
             lock(&self.shared.status).model = "off".into();
             return None;
         }
         let seg = &config.segmentation;
-        let key = (seg.model.clone(), seg.backend.clone(), seg.threads, config.camera.fps);
-        if self.segmenter.is_some() && self.segmenter_key.as_ref() == Some(&key) {
+        let request = ModelRequest {
+            model: seg.model.clone(),
+            backend: seg.backend.clone(),
+            threads: seg.threads,
+            budget_ms: MODEL_BUDGET * 1000.0 / config.camera.fps as f32,
+        };
+        if self.model.as_ref() == Some(&request) {
             return None;
         }
-        self.segmenter = None;
-        let budget = MODEL_BUDGET * 1000.0 / config.camera.fps as f32;
-        match Segmenter::load(&seg.model, Choice::parse(&seg.backend), seg.threads as usize, budget) {
-            Ok(segmenter) => {
-                let description = format!(
-                    "{} on {} ({:.1} ms)",
-                    segmenter.manifest().name,
-                    segmenter.backend().label(),
-                    segmenter.typical_ms()
-                );
+        self.model = None;
+        match self.picture.load_model(&request) {
+            Ok(description) => {
                 tracing::info!("model: {description}");
                 lock(&self.shared.status).model = description;
-                self.segmenter = Some(segmenter);
-                self.segmenter_key = Some(key);
+                self.model = Some(request);
                 None
             }
             Err(e) => {
@@ -383,10 +376,9 @@ impl Context<'_> {
     /// restart (`Ok(Some)`), or it fails.
     fn stream(&mut self, vcam: &dyn FrameSink) -> Result<Option<Next>, EngineError> {
         let shared = self.shared;
-        let gpu = self.gpu;
         let devices = self.devices;
         let mut config = shared.config();
-        let model_problem = self.ensure_segmenter(&config);
+        let model_problem = self.ensure_model(&config);
 
         let slot = FrameSlot::default();
         let capturing = AtomicBool::new(true);
@@ -404,9 +396,7 @@ impl Context<'_> {
                     None => State::Streaming,
                 });
 
-                let mut renderer: Option<Renderer> = None;
-                let mut params = frame_params(&config, self.segmenter.is_some());
-                let mut mask = Vec::new();
+                let mut params = frame_params(&config, self.model.is_some());
                 let mut timer = Timer::default();
                 let mut frames = 0u32;
                 let mut since = Instant::now();
@@ -418,27 +408,8 @@ impl Context<'_> {
                     timer.record("decode", decode_ms);
                     timer.start();
 
-                    let sizes = Sizes {
-                        source: (frame.width, frame.height),
-                        output: (config.output.width, config.output.height),
-                        model: self.segmenter.as_ref().map(|s| s.input_size()),
-                    };
-                    if renderer.as_ref().map(Renderer::sizes) != Some(sizes) {
-                        renderer = Some(Renderer::new(gpu, sizes));
-                    }
-                    let renderer = renderer.as_mut().expect("just created");
-
-                    renderer.upload(gpu, &frame.rgba);
-                    timer.lap("upload");
-                    let model_input = renderer.prepare(gpu, &params)?;
-                    timer.lap("frame");
-                    if let (Some(image), Some(segmenter)) = (model_input, self.segmenter.as_mut()) {
-                        segmenter.run(image, &mut mask)?;
-                        renderer.set_mask(gpu, &mask);
-                        timer.lap("model");
-                    }
-                    let yuyv = renderer.finish(gpu, &params)?;
-                    timer.lap("render");
+                    let output = (config.output.width, config.output.height);
+                    let yuyv = self.picture.render(&frame, output, &params, &mut timer)?;
                     if let Err(e) = vcam.write(yuyv) {
                         tracing::warn!("{e}");
                     }
@@ -447,7 +418,7 @@ impl Context<'_> {
 
                     let preview_size = *lock(&shared.preview_size);
                     if let Some((width, height)) = preview_size {
-                        let rgba = renderer.preview(gpu, width, height)?;
+                        let rgba = self.picture.preview(width, height)?;
                         let mut preview = lock(&shared.preview);
                         preview.width = width;
                         preview.height = height;
@@ -478,13 +449,13 @@ impl Context<'_> {
                             Some(level) => {
                                 config = shared.config();
                                 if level == Apply::ReloadModel || config.background.mode == "blur" {
-                                    if let Some(problem) = self.ensure_segmenter(&config) {
+                                    if let Some(problem) = self.ensure_model(&config) {
                                         shared.set_state(State::Problem(problem));
                                     } else {
                                         shared.set_state(State::Streaming);
                                     }
                                 }
-                                params = frame_params(&config, self.segmenter.is_some());
+                                params = frame_params(&config, self.model.is_some());
                                 timer.clear();
                             }
                             None => {}
@@ -496,6 +467,7 @@ impl Context<'_> {
                 }
             })();
             capturing.store(false, Ordering::Relaxed);
+            self.picture.rest();
             let mut status = lock(&shared.status);
             status.fps = 0.0;
             status.stages.clear();

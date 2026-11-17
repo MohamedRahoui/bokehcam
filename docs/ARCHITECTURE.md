@@ -143,13 +143,19 @@ Threads:
   are dropped rather than queued, so delay never accumulates.
 - **watcher**: learns from the virtual camera whether an app is reading it.
 
-### Devices behind interfaces
+### Devices and picture stages behind interfaces
 
 The engine does not name the camera or the virtual camera types. It opens
 and uses them through three small traits in `devices.rs`: `Devices` (opens
 either), `FrameSource` (encoded frames in) and `FrameSink` (finished frames
 out, and whether an app is reading). The types from `bokehcam-media`
 implement them; anything else that does can stand in for the hardware.
+
+The same holds for everything between a decoded frame and the finished one.
+`picture.rs` has the `Picture` trait (load or drop the model, render a
+frame, produce a preview) and its real implementation on the renderer and
+the model. The engine keeps the decisions: when the model has to be
+reloaded, and what to report when it cannot be.
 
 ### On-demand camera
 
