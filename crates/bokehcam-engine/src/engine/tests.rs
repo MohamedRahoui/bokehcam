@@ -7,16 +7,10 @@ use std::time::{Duration, Instant};
 
 use bokehcam_core::Config;
 
-use super::{Engine, Timing};
+use super::Engine;
 use crate::State;
-use crate::fakes::{OutputOpening, Rig};
+use crate::fakes::{FAST, OutputOpening, Rig};
 
-/// Short enough that a test takes a fraction of a second.
-const TIMING: Timing = Timing {
-    retry: Duration::from_millis(30),
-    frame_timeout: Duration::from_millis(500),
-    config_poll: Duration::from_millis(10),
-};
 /// Seconds the camera stays on after the last reader left, in these tests.
 const IDLE_TIMEOUT: f64 = 0.2;
 /// Nothing in these tests takes anywhere near this long unless it is broken.
@@ -51,14 +45,14 @@ fn start(config: Config) -> Harness {
 
 fn start_with_file(config: Config, config_path: Option<PathBuf>) -> Harness {
     let (rig, devices, stages) = Rig::new();
-    Harness { rig, engine: Engine::start_with(config, config_path, devices, stages, TIMING) }
+    Harness { rig, engine: Engine::start_with(config, config_path, devices, stages, FAST) }
 }
 
 /// Start an engine whose rig was prepared before the worker ran.
 fn start_prepared(config: Config, prepare: impl FnOnce(&Rig)) -> Harness {
     let (rig, devices, stages) = Rig::new();
     prepare(&rig);
-    Harness { rig, engine: Engine::start_with(config, None, devices, stages, TIMING) }
+    Harness { rig, engine: Engine::start_with(config, None, devices, stages, FAST) }
 }
 
 impl Harness {

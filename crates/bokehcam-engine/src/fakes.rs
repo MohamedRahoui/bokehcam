@@ -16,6 +16,7 @@ use bokehcam_media::{CaptureFormat, Encoding, Frame, MediaError};
 
 use crate::EngineError;
 use crate::devices::{Devices, FrameSink, FrameSource};
+use crate::engine::Timing;
 use crate::picture::{ModelRequest, Picture, PictureStages};
 use crate::status::Timer;
 
@@ -25,6 +26,13 @@ const CAMERA_SIZE: (u32, u32) = (64, 36);
 const FRAME_INTERVAL: Duration = Duration::from_millis(5);
 /// A corrupt packet is cut down to this many bytes.
 const CORRUPT_PACKET_BYTES: usize = 10;
+
+/// Engine delays short enough that a test takes a fraction of a second.
+pub(crate) const FAST: Timing = Timing {
+    retry: Duration::from_millis(30),
+    frame_timeout: Duration::from_millis(500),
+    config_poll: Duration::from_millis(10),
+};
 
 /// One opening of the virtual camera, as the engine asked for it.
 #[derive(Debug, Clone, PartialEq, Eq)]
