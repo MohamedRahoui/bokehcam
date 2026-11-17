@@ -143,6 +143,14 @@ Threads:
   are dropped rather than queued, so delay never accumulates.
 - **watcher**: learns from the virtual camera whether an app is reading it.
 
+### Devices behind interfaces
+
+The engine does not name the camera or the virtual camera types. It opens
+and uses them through three small traits in `devices.rs`: `Devices` (opens
+either), `FrameSource` (encoded frames in) and `FrameSink` (finished frames
+out, and whether an app is reading). The types from `bokehcam-media`
+implement them; anything else that does can stand in for the hardware.
+
 ### On-demand camera
 
 v4l2loopback raises a private event (`V4L2_EVENT_PRI_CLIENT_USAGE`) when a

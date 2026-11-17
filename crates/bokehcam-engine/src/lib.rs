@@ -6,6 +6,7 @@
 
 #[cfg(unix)]
 pub mod control;
+mod devices;
 mod engine;
 mod status;
 
