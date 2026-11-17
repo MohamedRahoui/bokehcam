@@ -15,9 +15,10 @@ use bokehcam_core::Config;
 use bokehcam_core::schema::Apply;
 use bokehcam_gpu::{FrameParams, Gpu, Renderer, Sizes};
 use bokehcam_infer::{Choice, Segmenter};
-use bokehcam_media::{Camera, CaptureFormat, Decoder, Frame, MediaError, VirtualCamera};
+use bokehcam_media::{CaptureFormat, Decoder, Frame, MediaError};
 
 use crate::EngineError;
+use crate::devices::{Devices, FrameSink, SystemDevices};
 use crate::status::{Preview, State, Status, Timer};
 
 /// How long to wait before retrying after a failure (camera busy, device missing ...).
@@ -96,6 +97,11 @@ impl Engine {
     /// Start the pipeline. When `config_path` is given, that file is watched
     /// for changes and receives configs set through [`Self::set_config`].
     pub fn start(config: Config, config_path: Option<PathBuf>) -> Self {
+        Self::start_with(config, config_path, Arc::new(SystemDevices))
+    }
+
+    /// Start the pipeline on the given devices.
+    pub(crate) fn start_with(config: Config, config_path: Option<PathBuf>, devices: Arc<dyn Devices>) -> Self {
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             config: Mutex::new(config),
@@ -110,7 +116,7 @@ impl Engine {
             .name("bokehcam-worker".into())
             .spawn({
                 let shared = shared.clone();
-                move || worker(&shared, config_path.as_deref())
+                move || worker(&shared, config_path.as_deref(), &*devices)
             })
             .expect("cannot start a thread");
         Self { shared, worker: Mutex::new(Some(worker)) }
@@ -180,6 +186,7 @@ enum Next {
 struct Context<'a> {
     shared: &'a Shared,
     gpu: &'a Gpu,
+    devices: &'a dyn Devices,
     config_path: Option<&'a Path>,
     config_seen: Option<SystemTime>,
     /// The loaded model, kept across camera restarts.
@@ -188,7 +195,7 @@ struct Context<'a> {
     segmenter_key: Option<(String, String, u32, u32)>,
 }
 
-fn worker(shared: &Shared, config_path: Option<&Path>) {
+fn worker(shared: &Shared, config_path: Option<&Path>, devices: &dyn Devices) {
     let gpu = loop {
         match Gpu::new() {
             Ok(gpu) => break gpu,
@@ -204,6 +211,7 @@ fn worker(shared: &Shared, config_path: Option<&Path>) {
     let mut context = Context {
         shared,
         gpu: &gpu,
+        devices,
         config_path,
         config_seen: config_path.and_then(modified),
         segmenter: None,
@@ -271,7 +279,8 @@ impl Context<'_> {
         let shared = self.shared;
         let config = shared.config();
         let output = &config.output;
-        let vcam = VirtualCamera::open(&output.device, output.width, output.height, config.camera.fps)?;
+        let vcam = self.devices.open_virtual_camera(&output.device, output.width, output.height, config.camera.fps)?;
+        let vcam = &*vcam;
         lock(&shared.status).output = format!("{}, {}x{}", vcam.device(), output.width, output.height);
         tracing::info!(
             "virtual camera {}: {}x{}, {}",
@@ -299,13 +308,13 @@ impl Context<'_> {
                     }
                 }
             });
-            let result = self.serve_loop(&vcam);
+            let result = self.serve_loop(vcam);
             watching.store(false, Ordering::Relaxed);
             result
         })
     }
 
-    fn serve_loop(&mut self, vcam: &VirtualCamera) -> Result<Next, EngineError> {
+    fn serve_loop(&mut self, vcam: &dyn FrameSink) -> Result<Next, EngineError> {
         let shared = self.shared;
         loop {
             if shared.stopping() {
@@ -372,9 +381,10 @@ impl Context<'_> {
 
     /// Run the camera until nobody wants it (`Ok(None)`), something has to
     /// restart (`Ok(Some)`), or it fails.
-    fn stream(&mut self, vcam: &VirtualCamera) -> Result<Option<Next>, EngineError> {
+    fn stream(&mut self, vcam: &dyn FrameSink) -> Result<Option<Next>, EngineError> {
         let shared = self.shared;
         let gpu = self.gpu;
+        let devices = self.devices;
         let mut config = shared.config();
         let model_problem = self.ensure_segmenter(&config);
 
@@ -384,7 +394,7 @@ impl Context<'_> {
         let camera_config = config.camera.clone();
 
         thread::scope(|scope| {
-            scope.spawn(|| capture(&camera_config, &slot, &capturing, opened_tx));
+            scope.spawn(|| capture(devices, &camera_config, &slot, &capturing, opened_tx));
             let result = (|| -> Result<Option<Next>, EngineError> {
                 let format: CaptureFormat = opened_rx.recv().map_err(|_| MediaError::NoCamera)??;
                 lock(&shared.status).camera =
@@ -556,13 +566,14 @@ impl FrameSlot {
 }
 
 fn capture(
+    devices: &dyn Devices,
     config: &bokehcam_core::config::Camera,
     slot: &FrameSlot,
     capturing: &AtomicBool,
     opened: mpsc::Sender<Result<CaptureFormat, MediaError>>,
 ) {
     // The camera is opened here because its handle must stay on one thread.
-    let mut camera = match Camera::open(config) {
+    let mut camera = match devices.open_camera(config) {
         Ok(camera) => {
             let _ = opened.send(Ok(camera.format()));
             camera
