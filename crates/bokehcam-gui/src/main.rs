@@ -335,7 +335,6 @@ fn main() {
     tracing_subscriber::fmt().with_target(false).compact().init();
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
-        Theme::sync_system_appearance(None, cx);
 
         let (link, from_link, config) = match Link::start(paths::config_file()) {
             Ok(started) => started,
@@ -353,7 +352,13 @@ fn main() {
             app_id: Some("bokehcam".into()),
             ..Default::default()
         };
-        let opened = gpui_kit::open_window(options, cx, move |_, cx| cx.new(|cx| MainView::new(link, from_link, cx)));
+        let opened = gpui_kit::open_window(options, cx, move |window, cx| {
+            // On Linux the system appearance arrives after the window opens,
+            // so reading it once here is not enough.
+            Theme::sync_system_appearance(Some(window), cx);
+            window.observe_window_appearance(|window, cx| Theme::sync_system_appearance(Some(window), cx)).detach();
+            cx.new(|cx| MainView::new(link, from_link, cx))
+        });
         if let Err(e) = opened {
             eprintln!("error: cannot open the window: {e:#}");
             cx.quit();
