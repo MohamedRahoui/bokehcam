@@ -2,21 +2,11 @@
 
 use wgpu::util::DeviceExt;
 
+use crate::shaders::{Input, Shader};
 use crate::{Gpu, GpuError};
-
-const COMMON: &str = include_str!("shaders/common.wgsl");
 
 /// Sixteen floats: the parameter block every pass receives.
 pub type Params = [f32; 16];
-
-/// How a pass reads one of its input textures.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Input {
-    /// Sampled with the linear sampler (8-bit and 16-bit float formats).
-    Filtered,
-    /// Read texel by texel (32-bit float formats, which cannot be filtered).
-    Exact,
-}
 
 /// A texture that passes render into and later passes read from.
 pub struct Target {
@@ -64,11 +54,11 @@ pub struct Pass {
 }
 
 impl Pass {
-    pub fn new(gpu: &Gpu, label: &'static str, fragment: &str, inputs: &[Input], output: wgpu::TextureFormat) -> Self {
+    pub fn new(gpu: &Gpu, label: &'static str, shader: &Shader, output: wgpu::TextureFormat) -> Self {
         let device = &gpu.device;
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(label),
-            source: wgpu::ShaderSource::Wgsl(format!("{COMMON}\n{fragment}").into()),
+            source: wgpu::ShaderSource::Wgsl(shader.source().into()),
         });
 
         let mut entries = vec![
@@ -89,7 +79,7 @@ impl Pass {
                 count: None,
             },
         ];
-        for (i, input) in inputs.iter().enumerate() {
+        for (i, input) in shader.inputs.iter().enumerate() {
             entries.push(wgpu::BindGroupLayoutEntry {
                 binding: 2 + i as u32,
                 visibility: wgpu::ShaderStages::FRAGMENT,
