@@ -6,6 +6,13 @@ Notable changes to bokehcam are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The settings window is built around the preview: the picture fills its
+  pane, a divider between the preview and the settings can be dragged to
+  give either more room, and the two sit side by side or stacked depending
+  on the shape of the window.
+
 ### Fixed
 
 - The settings window now follows the system's light or dark appearance,
