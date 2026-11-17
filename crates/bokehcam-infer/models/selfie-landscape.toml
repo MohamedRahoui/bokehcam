@@ -1,0 +1,20 @@
+name = "selfie-landscape"
+title = "MediaPipe Selfie (landscape)"
+description = "Very fast and light. The model family video-call apps use by default. Hands and thin objects can look blocky."
+license = "Apache-2.0"
+source = "Google MediaPipe, converted to ONNX Runtime format by the obs-backgroundremoval project"
+file = "selfie_landscape.ort"
+url = "https://github.com/royshil/obs-backgroundremoval/raw/1.4.1/data/models/mediapipe.with_runtime_opt.ort"
+sha256 = "35afefd71ad4578eb9eecf0ed57f1e91c21cd175b84f58f08cea5d4463dd9d63"
+# Relative accuracy, used by "auto" to prefer better models when they are fast enough.
+quality = 1
+
+[input]
+width = 256
+height = 144
+layout = "nhwc"      # channel order of the tensor: "nhwc" or "nchw"
+range = "0..1"       # pixel value range the model expects: "0..1" or "-1..1"
+
+[output]
+kind = "logits"      # "logits": class scores, class 0 = background. "alpha": a 0..1 matte.
+layout = "nhwc"

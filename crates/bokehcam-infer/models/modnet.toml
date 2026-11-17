@@ -1,0 +1,20 @@
+name = "modnet"
+title = "MODNet"
+description = "A matting model: soft edges, loose hair strands and separate fingers. Needs a graphics card to run at full frame rate."
+license = "Apache-2.0"
+source = "ZHKKKe/MODNet, ONNX export published by Xenova on Hugging Face"
+file = "modnet.onnx"
+url = "https://huggingface.co/Xenova/modnet/resolve/main/onnx/model.onnx"
+sha256 = "07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9"
+quality = 4
+
+[input]
+# MODNet accepts any size that is a multiple of 32; this one is close to 16:9.
+width = 448
+height = 256
+layout = "nchw"
+range = "-1..1"
+
+[output]
+kind = "alpha"
+layout = "nchw"

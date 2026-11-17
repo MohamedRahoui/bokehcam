@@ -1,0 +1,19 @@
+name = "selfie-multiclass"
+title = "MediaPipe Selfie Multiclass"
+description = "Clean, accurate masks with separate classes for hair, skin and clothes. Needs a graphics card to run at full frame rate."
+license = "Apache-2.0"
+source = "Google MediaPipe, converted to ONNX Runtime format by the obs-backgroundremoval project"
+file = "selfie_multiclass_256x256.ort"
+url = "https://github.com/royshil/obs-backgroundremoval/raw/1.4.1/data/models/selfie_multiclass_256x256.with_runtime_opt.ort"
+sha256 = "317054e916e36f47457a85afa3ef6a6cc8f5d35f3cb22e5358fd1a3e6cfb8eed"
+quality = 3
+
+[input]
+width = 256
+height = 256
+layout = "nhwc"
+range = "0..1"
+
+[output]
+kind = "logits"
+layout = "nhwc"

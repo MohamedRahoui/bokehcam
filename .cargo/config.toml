@@ -1,0 +1,4 @@
+# The ONNX Runtime GPU backend ships as shared libraries placed next to the
+# binary at build time; let the binary find them there.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]

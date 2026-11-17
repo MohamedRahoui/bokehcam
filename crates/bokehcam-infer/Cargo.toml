@@ -1,0 +1,20 @@
+[package]
+name = "bokehcam-infer"
+description = "bokehcam: model manifests, download, and inference on the processor or graphics card"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bokehcam-core.workspace = true
+ort.workspace = true
+serde.workspace = true
+sha2 = "0.11"
+thiserror.workspace = true
+toml.workspace = true
+tracing.workspace = true
+ureq = "3"
+
+[lints]
+workspace = true
