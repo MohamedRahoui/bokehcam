@@ -2,8 +2,8 @@ name: Release
 
 # Pushing a tag such as v0.1.0 builds the Linux archive and publishes a
 # GitHub release with the matching section of CHANGELOG.md as its notes.
-# Starting the workflow by hand is a dry run: it builds and uploads the
-# archive as a workflow artifact and publishes nothing.
+# Starting the workflow by hand is a dry run: it does everything except
+# create the release.
 on:
   push:
     tags: ["v*"]
@@ -68,7 +68,6 @@ jobs:
 
   publish:
     name: Publish the release
-    if: github.ref_type == 'tag'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -93,6 +92,7 @@ jobs:
             exit 1
           fi
       - name: Create the release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
