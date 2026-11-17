@@ -11,7 +11,8 @@ Notable changes to bokehcam are recorded here. The format follows
 - The settings window is built around the preview: the picture fills its
   pane, a divider between the preview and the settings can be dragged to
   give either more room, and the two sit side by side or stacked depending
-  on the shape of the window.
+  on the shape of the window. The preview is drawn at the size it is shown,
+  up to the output size, so a large preview is sharp.
 
 ### Fixed
 

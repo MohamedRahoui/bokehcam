@@ -46,7 +46,7 @@ impl Shared {
             Ok(config) => {
                 shared.config = config.clone();
                 shared.problem = None;
-                let _ = shared.to_link.send(ToLink::SetConfig(config));
+                let _ = shared.to_link.send(ToLink::SetConfig(Box::new(config)));
             }
             Err(e) => shared.problem = Some(e.to_string().into()),
         }

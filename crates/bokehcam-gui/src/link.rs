@@ -18,8 +18,7 @@ use bokehcam_core::{Config, paths};
 use bokehcam_engine::control::{Client, ControlError, ControlServer};
 use bokehcam_engine::{Engine, Preview, Status};
 
-/// The preview is requested at this size (16:9; the window scales it).
-pub const PREVIEW_SIZE: (u32, u32) = (960, 540);
+use crate::layout;
 
 pub enum ToUi {
     Config(Config),
@@ -30,7 +29,9 @@ pub enum ToUi {
 }
 
 pub enum ToLink {
-    SetConfig(Config),
+    SetConfig(Box<Config>),
+    /// Ask for previews of this size from now on.
+    PreviewSize((u32, u32)),
 }
 
 pub struct Link {
@@ -60,12 +61,22 @@ impl Link {
         let (to_ui, from_link) = mpsc::channel();
         let (to_link, from_ui) = mpsc::channel();
         let known = config.clone();
-        thread::Builder::new().name("bokehcam-link".into()).spawn(move || run(client, known, &to_ui, &from_ui))?;
+        // The window says how large it shows the picture once it has laid it out.
+        let preview_size = layout::preview_request((config.output.width, config.output.height), 0.0);
+        thread::Builder::new()
+            .name("bokehcam-link".into())
+            .spawn(move || run(client, known, preview_size, &to_ui, &from_ui))?;
         Ok((Self { to_link, _local: local }, from_link, config))
     }
 }
 
-fn run(mut client: Client, mut known: Config, to_ui: &Sender<ToUi>, from_ui: &Receiver<ToLink>) {
+fn run(
+    mut client: Client,
+    mut known: Config,
+    mut preview_size: (u32, u32),
+    to_ui: &Sender<ToUi>,
+    from_ui: &Receiver<ToLink>,
+) {
     let mut sequence = 0;
     let mut last_status = Instant::now() - Duration::from_secs(1);
     let mut last_config = Instant::now();
@@ -75,7 +86,8 @@ fn run(mut client: Client, mut known: Config, to_ui: &Sender<ToUi>, from_ui: &Re
             let mut wanted = None;
             loop {
                 match from_ui.try_recv() {
-                    Ok(ToLink::SetConfig(config)) => wanted = Some(config),
+                    Ok(ToLink::SetConfig(config)) => wanted = Some(*config),
+                    Ok(ToLink::PreviewSize(size)) => preview_size = size,
                     Err(mpsc::TryRecvError::Empty) => break,
                     Err(mpsc::TryRecvError::Disconnected) => return Err(ControlError::NotRunning),
                 }
@@ -93,7 +105,7 @@ fn run(mut client: Client, mut known: Config, to_ui: &Sender<ToUi>, from_ui: &Re
                     Err(e) => return Err(e),
                 }
             }
-            if let Some(preview) = client.preview(PREVIEW_SIZE.0, PREVIEW_SIZE.1, sequence)? {
+            if let Some(preview) = client.preview(preview_size.0, preview_size.1, sequence)? {
                 sequence = preview.sequence;
                 let _ = to_ui.send(ToUi::Preview(preview));
             }
