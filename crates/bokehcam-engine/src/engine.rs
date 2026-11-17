@@ -618,3 +618,6 @@ fn capture(
         slot.ready.notify_one();
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -8,6 +8,8 @@
 pub mod control;
 mod devices;
 mod engine;
+#[cfg(test)]
+mod fakes;
 mod picture;
 mod status;
 
