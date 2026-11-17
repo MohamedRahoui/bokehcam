@@ -29,6 +29,28 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+  # Only Linux has device backends, but the placeholders that stand in for
+  # them elsewhere have to keep compiling.
+  other-platforms:
+    name: Lint (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+          - name: Windows
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
   dependencies:
     name: Licences and advisories
     runs-on: ubuntu-latest

@@ -1,8 +1,6 @@
-//! The control channel: how other processes talk to a running engine.
-//!
-//! A Unix socket (`$XDG_RUNTIME_DIR/bokehcam.sock`) carrying length-prefixed
-//! JSON messages. The settings window and the `bokehcam status/get/set`
-//! commands are clients; whichever process runs the engine is the server.
+//! The control channel over a Unix socket
+//! (`$XDG_RUNTIME_DIR/bokehcam.sock`), carrying length-prefixed JSON
+//! messages.
 //!
 //! Every message is a little-endian `u32` length followed by that many
 //! bytes. Requests and responses are JSON; a preview response is followed by
@@ -19,27 +17,13 @@ use std::time::{Duration, Instant};
 use bokehcam_core::Config;
 use serde::{Deserialize, Serialize};
 
+use super::ControlError;
 use crate::{Engine, Preview, Status};
 
 /// A preview request older than this no longer keeps the camera on.
 const PREVIEW_INTEREST: Duration = Duration::from_millis(1500);
 /// Upper bound for one message, to fail fast on a corrupt stream.
 const MAX_MESSAGE: u32 = 64 << 20;
-
-#[derive(Debug, thiserror::Error)]
-pub enum ControlError {
-    #[error("bokehcam is not running")]
-    NotRunning,
-    #[error("bokehcam is already running")]
-    AlreadyRunning,
-    #[error("control channel: {0}")]
-    Io(#[from] io::Error),
-    #[error("control channel: unexpected message ({0})")]
-    Protocol(String),
-    /// The engine refused the request; the text says why.
-    #[error("{0}")]
-    Refused(String),
-}
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "request", rename_all = "snake_case")]

@@ -32,7 +32,9 @@ Only `bokehcam-media` needs a new backend with the same API as
 (open, `next_packet`, modes, controls) and `VirtualCamera`
 (open, write, consumer notifications). Everything else is portable code on
 portable libraries. The control channel would need a named-pipe transport on
-Windows.
+Windows; until it has one, `control/unsupported.rs` stands in for it there,
+so the service and the window report that they are not available instead
+of failing to build.
 
 ## One frame
 
@@ -184,7 +186,7 @@ loaded disables the blur but still delivers the picture.
 
 ### Control channel
 
-`$XDG_RUNTIME_DIR/bokehcam.sock`, length-prefixed JSON (`control.rs`).
+`$XDG_RUNTIME_DIR/bokehcam.sock`, length-prefixed JSON (`control/unix.rs`).
 Requests: status, get config, set config, preview. Whichever process runs
 the engine serves it: `bokehcam run`, or the window when no service is
 running. The window and `bokehcam status/get/set/snapshot` are clients, so
