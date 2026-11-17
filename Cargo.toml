@@ -1,0 +1,31 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/MohamedRahoui/bokehcam"
+
+[workspace.dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+
+[workspace.lints.clippy]
+# `chunks_exact(N)` reads better than `as_chunks::<N>().0` in pixel loops.
+chunks_exact_to_as_chunks = "allow"
+# Error types of the model runtime are large; they only travel on cold paths.
+result_large_err = "allow"
+
+[profile.dev]
+opt-level = 1            # image code is unusable unoptimised
+
+[profile.dev.package."*"]
+opt-level = 3            # dependencies (decoders, wgpu) at full speed even in dev
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = "debuginfo"

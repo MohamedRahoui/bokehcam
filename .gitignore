@@ -1,0 +1,4 @@
+/target
+
+# Model files are downloaded by `bokehcam models fetch`, not committed.
+/models/
