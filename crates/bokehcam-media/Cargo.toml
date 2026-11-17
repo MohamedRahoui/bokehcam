@@ -9,11 +9,11 @@ repository.workspace = true
 [dependencies]
 bokehcam-core.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 zune-jpeg = "0.5"
 zune-core = "0.5"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+tracing.workspace = true
 v4l = "0.14"
 libc = "0.2"
 
