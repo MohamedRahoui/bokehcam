@@ -184,7 +184,7 @@ loaded disables the blur but still delivers the picture.
 
 ### Control channel
 
-`$XDG_RUNTIME_DIR/bokehcam.sock`, length-prefixed JSON (`control.rs`).
+`$XDG_RUNTIME_DIR/bokehcam.sock`, length-prefixed JSON (`control/unix.rs`).
 Requests: status, get config, set config, preview. Whichever process runs
 the engine serves it: `bokehcam run`, or the window when no service is
 running. The window and `bokehcam status/get/set/snapshot` are clients, so
