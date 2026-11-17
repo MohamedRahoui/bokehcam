@@ -10,6 +10,9 @@ repository = "https://github.com/MohamedRahoui/bokehcam"
 
 [workspace.dependencies]
 bokehcam-core = { path = "crates/bokehcam-core" }
+bokehcam-gpu = { path = "crates/bokehcam-gpu" }
+bokehcam-infer = { path = "crates/bokehcam-infer" }
+bokehcam-media = { path = "crates/bokehcam-media" }
 
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

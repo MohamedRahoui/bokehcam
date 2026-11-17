@@ -1,0 +1,20 @@
+[package]
+name = "bokehcam-engine"
+description = "bokehcam: the running pipeline (camera to virtual camera) and its control interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bokehcam-core.workspace = true
+bokehcam-gpu.workspace = true
+bokehcam-infer.workspace = true
+bokehcam-media.workspace = true
+serde.workspace = true
+serde_json = "1"
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
