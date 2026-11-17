@@ -8,6 +8,7 @@
 pub mod control;
 mod devices;
 mod engine;
+mod picture;
 mod status;
 
 pub use engine::Engine;
