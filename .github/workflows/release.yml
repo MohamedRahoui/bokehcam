@@ -1,0 +1,98 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 builds the Linux archive and publishes a
+# GitHub release with the matching section of CHANGELOG.md as its notes.
+# Starting the workflow by hand is a dry run: it builds and uploads the
+# archive as a workflow artifact and publishes nothing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      archive: ${{ steps.version.outputs.archive }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+      - name: Read the version
+        id: version
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 |
+            jq -r '.packages[] | select(.name == "bokehcam-cli") | .version')
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the crate version $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "archive=bokehcam-$version-linux-x86_64" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: cargo build --release --locked -p bokehcam-cli -p bokehcam-gui
+      - name: Package
+        env:
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          mkdir -p "dist/$ARCHIVE"
+          cp target/release/bokehcam target/release/bokehcam-gui "dist/$ARCHIVE/"
+          # The graphics-card backend of the model runtime is a shared
+          # library that must sit next to the programs.
+          find target/release -maxdepth 1 -name '*.so*' -exec cp {} "dist/$ARCHIVE/" \;
+          cp -r LICENSE README.md CHANGELOG.md packaging "dist/$ARCHIVE/"
+          tar -C dist -czf "dist/$ARCHIVE.tar.gz" "$ARCHIVE"
+          (cd dist && sha256sum "$ARCHIVE.tar.gz" > "$ARCHIVE.tar.gz.sha256")
+      - name: Check the packaged program starts
+        env:
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          mkdir check && tar -C check -xzf "dist/$ARCHIVE.tar.gz"
+          "check/$ARCHIVE/bokehcam" --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.archive }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.archive }}
+          path: dist
+      - name: Extract the release notes
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          awk -v version="$VERSION" '
+            BEGIN { gsub(/\./, "\\.", version) }
+            /^## \[/ { printing = ($0 ~ "^## \\[" version "\\]") ; next }
+            printing { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no section for version $VERSION"
+            exit 1
+          fi
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "bokehcam $GITHUB_REF_NAME" --notes-file notes.md
