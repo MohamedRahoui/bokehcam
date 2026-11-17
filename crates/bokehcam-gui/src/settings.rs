@@ -12,10 +12,17 @@ use gpui_kit::component::setting::{
 };
 use gpui_kit::component::slider::{Slider, SliderEvent, SliderScale, SliderState};
 use gpui_kit::component::{ActiveTheme, h_flex};
+use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use toml::Value;
 
 use crate::link::ToLink;
+
+/// Width of the list of setting groups until its divider is dragged; narrow
+/// enough to leave the controls room in a side panel.
+const SIDEBAR_WIDTH: Pixels = px(170.);
+/// Width of a slider that sits beside its label.
+const SLIDER_WIDTH: Pixels = px(220.);
 
 /// The configuration as the window sees it, shared by every control.
 pub struct Shared {
@@ -172,7 +179,7 @@ impl Render for SettingsPanel {
                 state.update(cx, |state, cx| state.set_value(value, window, cx));
             }
         }
-        Settings::new("settings").pages(self.pages.clone())
+        Settings::new("settings").sidebar_width(SIDEBAR_WIDTH).pages(self.pages.clone())
     }
 }
 
@@ -200,13 +207,17 @@ fn slider_item(setting: &Setting, state: Entity<SliderState>, default: f64) -> S
     let reset_state = state.clone();
     SettingItem::new(
         setting.label,
-        SettingField::render(move |_, _, cx| {
+        SettingField::render(move |options, _, cx| {
             let value = as_f64(&Shared::value(cx, key));
             let text = if value.abs() < 0.01 && value != 0.0 { format!("{value:.5}") } else { format!("{value:.2}") };
+            // Below its label the slider takes the whole row; beside it, a fixed width.
+            let below_label = options.layout() == Axis::Vertical;
+            let slider = Slider::new(&state);
             h_flex()
                 .gap_3()
                 .items_center()
-                .child(Slider::new(&state).w(px(220.)))
+                .when(below_label, |row| row.w_full())
+                .child(if below_label { slider.flex_1() } else { slider.w(SLIDER_WIDTH) })
                 .child(div().w(px(64.)).text_sm().text_color(cx.theme().muted_foreground).child(text))
         })
         .on_reset(
