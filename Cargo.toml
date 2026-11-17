@@ -15,6 +15,8 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 tracing = "0.1"
+wgpu = "30"
+pollster = "0.4"
 
 [workspace.lints.clippy]
 # `chunks_exact(N)` reads better than `as_chunks::<N>().0` in pixel loops.

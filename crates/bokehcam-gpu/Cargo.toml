@@ -1,0 +1,17 @@
+[package]
+name = "bokehcam-gpu"
+description = "bokehcam: the GPU picture pipeline (framing, matting, blur, colour, output)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bytemuck = "1"
+pollster.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wgpu.workspace = true
+
+[lints]
+workspace = true
