@@ -37,6 +37,18 @@ pub fn fit(picture: (u32, u32), available: (f32, f32)) -> (f32, f32) {
     (width * scale, height * scale)
 }
 
+/// The size to ask the engine for so the preview is sharp when it is shown
+/// `shown_width` physical pixels wide: the smallest quarter step of the
+/// output that covers it, and never more than the output itself.
+///
+/// Steps keep the request stable while the divider is dragged, so the engine
+/// does not rebuild its preview for every pixel of movement.
+pub fn preview_request(output: (u32, u32), shown_width: f32) -> (u32, u32) {
+    const STEPS: u32 = 4;
+    let step = (1..STEPS).find(|step| (output.0 * step / STEPS) as f32 >= shown_width).unwrap_or(STEPS);
+    (output.0 * step / STEPS, output.1 * step / STEPS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +103,25 @@ mod tests {
         assert_eq!(fit((1920, 1080), (0.0, 500.0)), (0.0, 0.0));
         assert_eq!(fit((1920, 1080), (500.0, -4.0)), (0.0, 0.0));
         assert_eq!(fit((0, 1080), (500.0, 500.0)), (0.0, 0.0));
+    }
+
+    #[test]
+    fn preview_request_is_the_smallest_step_that_covers_what_is_shown() {
+        assert_eq!(preview_request(WIDESCREEN, 300.0), (480, 270));
+        assert_eq!(preview_request(WIDESCREEN, 480.0), (480, 270));
+        assert_eq!(preview_request(WIDESCREEN, 481.0), (960, 540));
+        assert_eq!(preview_request(WIDESCREEN, 1392.0), (1440, 810));
+        assert_eq!(preview_request(WIDESCREEN, 1441.0), (1920, 1080));
+    }
+
+    #[test]
+    fn preview_request_never_exceeds_the_output() {
+        assert_eq!(preview_request(WIDESCREEN, 5000.0), (1920, 1080));
+        assert_eq!(preview_request((640, 480), 2000.0), (640, 480));
+    }
+
+    #[test]
+    fn preview_request_before_anything_is_shown_is_the_smallest_step() {
+        assert_eq!(preview_request(WIDESCREEN, 0.0), (480, 270));
     }
 }

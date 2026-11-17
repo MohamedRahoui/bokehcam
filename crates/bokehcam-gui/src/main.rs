@@ -16,7 +16,7 @@ use gpui_kit::component::resizable::{h_resizable, resizable_panel, v_resizable};
 use gpui_kit::component::{ActiveTheme, Theme, h_flex, v_flex};
 use gpui_kit::*;
 use layout::Arrangement;
-use link::{Link, ToUi};
+use link::{Link, ToLink, ToUi};
 use settings::{SettingsPanel, Shared};
 
 /// How narrow and how wide the divider may make the settings panel.
@@ -26,9 +26,11 @@ const STACKED_SETTINGS_MIN: Pixels = px(160.);
 
 struct MainView {
     from_link: Receiver<ToUi>,
-    _link: Link,
+    link: Link,
     status: Status,
     preview: Option<Arc<RenderImage>>,
+    /// The preview size last asked of the engine, if any.
+    preview_request: Option<(u32, u32)>,
     settings: Entity<SettingsPanel>,
 }
 
@@ -45,7 +47,14 @@ impl MainView {
         })
         .detach();
 
-        Self { from_link, _link: link, status: Status::default(), preview: None, settings: cx.new(SettingsPanel::new) }
+        Self {
+            from_link,
+            link,
+            status: Status::default(),
+            preview: None,
+            preview_request: None,
+            settings: cx.new(SettingsPanel::new),
+        }
     }
 
     fn pump(&mut self, cx: &mut Context<Self>) {
@@ -82,6 +91,14 @@ impl MainView {
 }
 
 impl MainView {
+    /// Ask the engine for previews of this size, unless it already sends them.
+    fn request_preview(&mut self, size: (u32, u32)) {
+        if self.preview_request != Some(size) {
+            self.preview_request = Some(size);
+            let _ = self.link.to_link.send(ToLink::PreviewSize(size));
+        }
+    }
+
     /// The state in a few words, and the colour of its indicator.
     fn state_label(&self, cx: &App) -> (SharedString, Hsla) {
         let theme = cx.theme();
@@ -103,16 +120,20 @@ impl MainView {
     }
 
     /// The picture, as large as its pane allows, with the state over it.
-    fn render_picture(&self, cx: &App) -> impl IntoElement + use<> {
+    fn render_picture(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let output = &cx.global::<Shared>().config.output;
         let proportions = (output.width, output.height);
         let image = self.preview.clone();
         let (label, indicator) = self.state_label(cx);
         let waiting = self.waiting_text();
+        let this = cx.weak_entity();
 
-        container_query(move |available, _, cx| {
-            let theme = cx.theme();
+        container_query(move |available, window, cx| {
             let (width, height) = layout::fit(proportions, (available.width.as_f32(), available.height.as_f32()));
+            let request = layout::preview_request(proportions, width * window.scale_factor());
+            // The view is gone only while the window closes.
+            let _ = this.update(cx, |this, _| this.request_preview(request));
+            let theme = cx.theme();
             let picture = match image {
                 Some(image) => img(ImageSource::Render(image)).size_full().rounded(theme.radius_lg).into_any_element(),
                 None => div()
@@ -153,7 +174,8 @@ impl MainView {
     }
 
     /// The preview pane: the picture above a line of details.
-    fn render_preview(&self, cx: &App) -> impl IntoElement + use<> {
+    fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let picture = self.render_picture(cx);
         let theme = cx.theme();
         let details = [self.status.camera.as_str(), self.status.model.as_str(), self.status.graphics.as_str()]
             .into_iter()
@@ -167,25 +189,18 @@ impl MainView {
         };
         let refused = cx.global::<Shared>().problem.clone();
 
-        v_flex()
-            .size_full()
-            .bg(theme.sidebar)
-            .child(div().flex_1().min_h_0().p_4().child(self.render_picture(cx)))
-            .child(
-                v_flex()
-                    .flex_none()
-                    .px_4()
-                    .pb_3()
-                    .gap_1()
-                    .text_xs()
-                    .children(
-                        engine_problem
-                            .into_iter()
-                            .chain(refused)
-                            .map(|text| div().text_color(theme.danger).child(text)),
-                    )
-                    .child(div().truncate().text_color(theme.muted_foreground).child(details)),
-            )
+        v_flex().size_full().bg(theme.sidebar).child(div().flex_1().min_h_0().p_4().child(picture)).child(
+            v_flex()
+                .flex_none()
+                .px_4()
+                .pb_3()
+                .gap_1()
+                .text_xs()
+                .children(
+                    engine_problem.into_iter().chain(refused).map(|text| div().text_color(theme.danger).child(text)),
+                )
+                .child(div().truncate().text_color(theme.muted_foreground).child(details)),
+        )
     }
 }
 
