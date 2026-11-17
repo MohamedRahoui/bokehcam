@@ -157,6 +157,10 @@ frame, produce a preview) and its real implementation on the renderer and
 the model. The engine keeps the decisions: when the model has to be
 reloaded, and what to report when it cannot be.
 
+The engine's tests run it on the stand-ins in `fakes.rs`, with its delays
+(retry, frame timeout, config poll) shortened, so they need no camera, no
+virtual camera and no graphics card.
+
 ### On-demand camera
 
 v4l2loopback raises a private event (`V4L2_EVENT_PRI_CLIENT_USAGE`) when a
