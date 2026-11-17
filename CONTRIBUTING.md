@@ -4,6 +4,8 @@ bokehcam is in early development, so the most useful contributions right now
 are bug reports with the output of `bokehcam doctor` and `bokehcam status`.
 
 Contributions are accepted under the project's licence, GPL-3.0-or-later.
+Everyone taking part is expected to follow the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Setup
 
