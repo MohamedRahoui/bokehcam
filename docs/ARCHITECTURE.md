@@ -126,7 +126,7 @@ It drives
 
 - validation (`Config::validate`),
 - the documented config file (`Config::to_toml`),
-- the controls in the window (generated in `bokehcam-gui/src/main.rs`),
+- the controls in the window (generated in `bokehcam-gui/src/settings.rs`),
 - how a change is applied (`Config::apply_level`).
 
 Adding a setting: a field in `config.rs`, an entry in `schema.rs`, and its
