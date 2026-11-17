@@ -1,0 +1,22 @@
+[package]
+name = "bokehcam-gui"
+description = "bokehcam: settings and preview window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bokehcam-core.workspace = true
+bokehcam-engine.workspace = true
+bokehcam-infer.workspace = true
+bokehcam-media.workspace = true
+gpui-kit.workspace = true
+image = { version = "0.25", default-features = false }
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

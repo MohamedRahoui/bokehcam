@@ -25,6 +25,7 @@ clap = { version = "4", features = ["derive"] }
 wgpu = "30"
 pollster = "0.4"
 ort = { version = "=2.0.0-rc.15", features = ["webgpu"] }
+gpui-kit = "0.10"
 
 [workspace.lints.clippy]
 # `chunks_exact(N)` reads better than `as_chunks::<N>().0` in pixel loops.
