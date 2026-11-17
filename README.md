@@ -53,6 +53,26 @@ The script lists every file it creates at the top;
 `scripts/uninstall.sh` removes them again. On Arch-based systems it installs
 `v4l2loopback-dkms` with pacman; elsewhere, install v4l2loopback first.
 
+### From a release archive
+
+The [releases page](https://github.com/MohamedRahoui/bokehcam/releases) has
+a prebuilt archive for Linux x86_64. It needs glibc 2.39 or newer (Ubuntu
+24.04, Fedora 40, Debian 13, current Arch), a Vulkan driver and
+v4l2loopback.
+
+```sh
+tar -xzf bokehcam-*-linux-x86_64.tar.gz && cd bokehcam-*-linux-x86_64
+sudo modprobe v4l2loopback devices=1 video_nr=10 card_label=bokehcam exclusive_caps=1
+./bokehcam models fetch
+./bokehcam doctor
+./bokehcam-gui
+```
+
+Keep the files of the archive together: the programs load the library next
+to them. The `modprobe` line lasts until the next reboot.
+
+### From source, without installing
+
 To try it without installing anything permanently:
 
 ```sh
