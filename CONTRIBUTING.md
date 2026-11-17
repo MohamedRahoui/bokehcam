@@ -34,6 +34,17 @@ cargo run --release -p bokehcam-cli -- snapshot /tmp/after.png
 cargo run --release -p bokehcam-cli -- run --stats 5
 ```
 
+## Pull requests
+
+- Keep each pull request to one change, small enough to review in one
+  sitting. Split larger work into a sequence that each stands on its own.
+- Every commit should build and pass the tests by itself. Do not mix
+  behaviour changes with refactoring or reformatting.
+- A change users would notice gets a line under "Unreleased" in
+  `CHANGELOG.md`.
+- CI must pass, and the maintainer reviews every pull request before it is
+  merged.
+
 ## Conventions
 
 - Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first; it says where
