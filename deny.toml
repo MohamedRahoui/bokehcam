@@ -1,0 +1,42 @@
+# Checked in CI by cargo-deny: licences, security advisories and sources of
+# every dependency. Run locally with `cargo deny check`.
+
+[graph]
+all-features = true
+
+[advisories]
+# Security vulnerabilities fail the check anywhere in the tree. "Unmaintained"
+# notices only fail for crates this workspace depends on directly: those are
+# the ones we can replace.
+unmaintained = "workspace"
+
+[licenses]
+# Licences that may be combined into a GPL-3.0-or-later program.
+allow = [
+    "GPL-3.0-or-later",
+    "Apache-2.0",
+    "MIT",
+    "0BSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+    # Weak copyleft per file; explicitly compatible with the GPL.
+    "MPL-2.0",
+    # A permissive licence for data (used by embedded certificate lists).
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "allow"
+# Our own crates never use `*` versions; third-party crates that do are not
+# ours to fix.
+wildcards = "warn"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
