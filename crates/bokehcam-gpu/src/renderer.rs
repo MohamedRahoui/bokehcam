@@ -10,7 +10,8 @@
 
 use wgpu::TextureFormat as Format;
 
-use crate::pass::{Input, Params, Pass, Readback, Target};
+use crate::pass::{Params, Pass, Readback, Target};
+use crate::shaders::{self, Shader};
 use crate::{Gpu, GpuError};
 
 /// The small picture (mask statistics, blur source) is this much smaller than the output.
@@ -135,7 +136,7 @@ impl Renderer {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        let one = |source| Pass::new(gpu, "pass", source, &[Input::Filtered], rgba8);
+        let one = |shader: &Shader| Pass::new(gpu, "pass", shader, rgba8);
         Self {
             sizes,
             sampler,
@@ -145,16 +146,10 @@ impl Renderer {
             packed: Target::new(gpu, "packed", ow / 2, oh, rgba8),
             packed_readback: Readback::new(gpu, "packed", ow / 2, oh),
             blank: Target::new(gpu, "blank", 1, 1, Format::Rgba16Float),
-            frame: one(include_str!("shaders/frame.wgsl")),
-            composite: Pass::new(
-                gpu,
-                "composite",
-                include_str!("shaders/composite.wgsl"),
-                &[Input::Filtered; 3],
-                rgba8,
-            ),
-            yuyv: one(include_str!("shaders/yuyv.wgsl")),
-            preview_pass: one(include_str!("shaders/copy.wgsl")),
+            frame: one(&shaders::FRAME),
+            composite: Pass::new(gpu, "composite", &shaders::COMPOSITE, rgba8),
+            yuyv: one(&shaders::YUYV),
+            preview_pass: one(&shaders::COPY),
             preview: None,
             mask: sizes.model.map(|model| MaskStages::new(gpu, &sizes, model)),
         }
@@ -296,12 +291,7 @@ impl MaskStages {
         let f32x4 = Format::Rgba32Float;
         let f16x4 = Format::Rgba16Float;
         let rgba8 = Format::Rgba8Unorm;
-        let filtered = |label, source, inputs: usize, output| {
-            Pass::new(gpu, label, source, &vec![Input::Filtered; inputs], output)
-        };
-        let exact = |label, source, output| Pass::new(gpu, label, source, &[Input::Exact], output);
-        let box_blur = include_str!("shaders/box.wgsl");
-        let gauss = include_str!("shaders/gauss.wgsl");
+        let pass = |label, shader: &Shader, output| Pass::new(gpu, label, shader, output);
         Self {
             model_size: model,
             model_input: Target::new(gpu, "model input", model.0, model.1, rgba8),
@@ -321,18 +311,18 @@ impl MaskStages {
             coeff: Target::new(gpu, "coeff", sw, sh, f16x4),
             half_a: Target::new(gpu, "blur a", hw, hh, f16x4),
             half_b: Target::new(gpu, "blur b", hw, hh, f16x4),
-            down4: filtered("down4", include_str!("shaders/down4.wgsl"), 1, rgba8),
-            to_model: filtered("to model", include_str!("shaders/copy.wgsl"), 1, rgba8),
-            temporal: filtered("temporal", include_str!("shaders/temporal.wgsl"), 2, Format::R16Float),
-            gf_moments: filtered("gf moments", include_str!("shaders/gf_moments.wgsl"), 2, f32x4),
-            box_h1: exact("box h1", box_blur, f32x4),
-            box_v1: exact("box v1", box_blur, f32x4),
-            gf_coeff: exact("gf coeff", include_str!("shaders/gf_coeff.wgsl"), f32x4),
-            box_h2: exact("box h2", box_blur, f32x4),
-            box_v2: exact("box v2", box_blur, f16x4),
-            bg_prepare: filtered("bg prepare", include_str!("shaders/bg_prepare.wgsl"), 2, f16x4),
-            gauss_h: filtered("gauss h", gauss, 1, f16x4),
-            gauss_v: filtered("gauss v", gauss, 1, f16x4),
+            down4: pass("down4", &shaders::DOWN4, rgba8),
+            to_model: pass("to model", &shaders::COPY, rgba8),
+            temporal: pass("temporal", &shaders::TEMPORAL, Format::R16Float),
+            gf_moments: pass("gf moments", &shaders::GF_MOMENTS, f32x4),
+            box_h1: pass("box h1", &shaders::BOX, f32x4),
+            box_v1: pass("box v1", &shaders::BOX, f32x4),
+            gf_coeff: pass("gf coeff", &shaders::GF_COEFF, f32x4),
+            box_h2: pass("box h2", &shaders::BOX, f32x4),
+            box_v2: pass("box v2", &shaders::BOX, f16x4),
+            bg_prepare: pass("bg prepare", &shaders::BG_PREPARE, f16x4),
+            gauss_h: pass("gauss h", &shaders::GAUSS, f16x4),
+            gauss_v: pass("gauss v", &shaders::GAUSS, f16x4),
         }
     }
 

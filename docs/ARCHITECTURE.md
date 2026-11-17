@@ -74,10 +74,11 @@ every frame's delay, which is why models are chosen against a time budget.
 
 ### Adding a picture effect
 
-An effect is a fragment shader plus a `Pass` in `renderer.rs`. `common.wgsl`
-provides the vertex stage, a parameter block of sixteen floats and a linear
-sampler; a pass declares its input textures and documents which parameter
-slots it reads. Settings for it go in `bokehcam-core` (see below).
+An effect is a fragment shader, an entry for it in `shaders.rs` that lists
+its input textures, and a `Pass` in `renderer.rs`. `common.wgsl` provides the
+vertex stage, a parameter block of sixteen floats and a linear sampler; a
+shader declares its textures from binding 2 upward and documents which
+parameter slots it reads. Settings for it go in `bokehcam-core` (see below).
 
 ## Models
 

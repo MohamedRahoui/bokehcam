@@ -7,6 +7,7 @@
 
 mod pass;
 mod renderer;
+mod shaders;
 
 pub use renderer::{FrameParams, Renderer, Sizes};
 
