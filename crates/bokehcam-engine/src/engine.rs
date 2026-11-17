@@ -21,11 +21,29 @@ use crate::devices::{Devices, FrameSink, SystemDevices};
 use crate::picture::{ModelRequest, Picture, PictureStages, SystemPictureStages};
 use crate::status::{Preview, State, Status, Timer};
 
-/// How long to wait before retrying after a failure (camera busy, device missing ...).
-const RETRY: Duration = Duration::from_secs(2);
-/// No frame for this long means the camera has stalled.
-const FRAME_TIMEOUT: Duration = Duration::from_secs(4);
-const CONFIG_POLL: Duration = Duration::from_millis(250);
+/// The delays the worker runs on. Tests shorten them.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Timing {
+    /// How long to wait before retrying after a failure (camera busy, device missing ...).
+    pub retry: Duration,
+    /// No frame for this long means the camera has stalled.
+    pub frame_timeout: Duration,
+    /// How often a streaming worker looks for a changed configuration.
+    pub config_poll: Duration,
+}
+
+impl Default for Timing {
+    fn default() -> Self {
+        Self {
+            retry: Duration::from_secs(2),
+            frame_timeout: Duration::from_secs(4),
+            config_poll: Duration::from_millis(250),
+        }
+    }
+}
+
+/// The longest the worker sleeps without checking whether it should stop.
+const STOP_CHECK: Duration = Duration::from_millis(50);
 /// The model may use this share of the time between two frames.
 const MODEL_BUDGET: f32 = 0.35;
 
@@ -35,6 +53,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 struct Shared {
+    timing: Timing,
     stop: AtomicBool,
     config: Mutex<Config>,
     /// A config a front end asked for, not yet applied.
@@ -69,13 +88,16 @@ impl Shared {
     /// Sleep, waking early when asked to stop. Returns false when stopping.
     fn pause(&self, duration: Duration) -> bool {
         let end = Instant::now() + duration;
-        while Instant::now() < end {
+        loop {
             if self.stopping() {
                 return false;
             }
-            thread::sleep(Duration::from_millis(50));
+            let remaining = end.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return true;
+            }
+            thread::sleep(remaining.min(STOP_CHECK));
         }
-        !self.stopping()
     }
 
     /// Should the physical camera be on?
@@ -97,7 +119,7 @@ impl Engine {
     /// Start the pipeline. When `config_path` is given, that file is watched
     /// for changes and receives configs set through [`Self::set_config`].
     pub fn start(config: Config, config_path: Option<PathBuf>) -> Self {
-        Self::start_with(config, config_path, Arc::new(SystemDevices), Arc::new(SystemPictureStages))
+        Self::start_with(config, config_path, Arc::new(SystemDevices), Arc::new(SystemPictureStages), Timing::default())
     }
 
     /// Start the pipeline on the given devices and picture stages.
@@ -106,8 +128,10 @@ impl Engine {
         config_path: Option<PathBuf>,
         devices: Arc<dyn Devices>,
         stages: Arc<dyn PictureStages>,
+        timing: Timing,
     ) -> Self {
         let shared = Arc::new(Shared {
+            timing,
             stop: AtomicBool::new(false),
             config: Mutex::new(config),
             pending: Mutex::new(None),
@@ -204,7 +228,7 @@ fn worker(shared: &Shared, config_path: Option<&Path>, devices: &dyn Devices, st
             Ok(picture) => break picture,
             Err(e) => {
                 shared.set_state(State::Problem(e.to_string()));
-                if !shared.pause(RETRY * 2) {
+                if !shared.pause(shared.timing.retry * 2) {
                     return;
                 }
             }
@@ -221,7 +245,7 @@ fn worker(shared: &Shared, config_path: Option<&Path>, devices: &dyn Devices, st
                 shared.set_state(State::Problem(e.to_string()));
                 // A changed config may be the fix; pick it up while waiting.
                 context.poll_config();
-                if !shared.pause(RETRY) {
+                if !shared.pause(shared.timing.retry) {
                     break;
                 }
             }
@@ -330,7 +354,7 @@ impl Context<'_> {
                 // Camera trouble is retried here, so apps keep the virtual camera open.
                 Err(e) => {
                     shared.set_state(State::Problem(e.to_string()));
-                    if !shared.pause(RETRY) {
+                    if !shared.pause(shared.timing.retry) {
                         return Ok(Next::Exit);
                     }
                 }
@@ -404,7 +428,7 @@ impl Context<'_> {
                 let mut spare = None;
 
                 loop {
-                    let (frame, decode_ms) = slot.take(spare.take(), FRAME_TIMEOUT)?;
+                    let (frame, decode_ms) = slot.take(spare.take(), shared.timing.frame_timeout)?;
                     timer.record("decode", decode_ms);
                     timer.start();
 
@@ -441,7 +465,7 @@ impl Context<'_> {
                     if shared.stopping() {
                         return Ok(Some(Next::Exit));
                     }
-                    if last_poll.elapsed() >= CONFIG_POLL {
+                    if last_poll.elapsed() >= shared.timing.config_poll {
                         last_poll = Instant::now();
                         match self.poll_config() {
                             Some(Apply::ReopenOutput) => return Ok(Some(Next::Restart)),
