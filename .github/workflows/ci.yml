@@ -19,17 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install system libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            clang libclang-dev pkg-config \
-            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev \
-            libfontconfig-dev libfreetype-dev libasound2-dev libssl-dev libvulkan-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-build
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
       - name: Format
         run: cargo fmt --all -- --check
       - name: Lint
