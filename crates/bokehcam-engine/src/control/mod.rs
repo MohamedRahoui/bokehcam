@@ -5,9 +5,17 @@
 
 use std::io;
 
+#[cfg(unix)]
 mod unix;
+#[cfg(unix)]
+use unix as platform;
 
-pub use unix::{Client, ControlServer};
+#[cfg(not(unix))]
+mod unsupported;
+#[cfg(not(unix))]
+use unsupported as platform;
+
+pub use platform::{Client, ControlServer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ControlError {
@@ -22,4 +30,9 @@ pub enum ControlError {
     /// The engine refused the request; the text says why.
     #[error("{0}")]
     Refused(String),
+    #[error(
+        "other programs cannot reach a running bokehcam on this platform yet, \
+         so the service and the settings window are not available"
+    )]
+    Unsupported,
 }

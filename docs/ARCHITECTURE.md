@@ -32,7 +32,9 @@ Only `bokehcam-media` needs a new backend with the same API as
 (open, `next_packet`, modes, controls) and `VirtualCamera`
 (open, write, consumer notifications). Everything else is portable code on
 portable libraries. The control channel would need a named-pipe transport on
-Windows.
+Windows; until it has one, `control/unsupported.rs` stands in for it there,
+so the service and the window report that they are not available instead
+of failing to build.
 
 ## One frame
 

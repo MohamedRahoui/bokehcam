@@ -4,7 +4,6 @@
 //! command line, the settings window) only hold a handle: they read
 //! [`Status`], send a new [`Config`], and may ask for preview pictures.
 
-#[cfg(unix)]
 pub mod control;
 mod devices;
 mod engine;
