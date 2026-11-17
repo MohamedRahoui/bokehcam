@@ -23,7 +23,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       archive: ${{ steps.version.outputs.archive }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-build
       - name: Read the version
         id: version
@@ -56,7 +56,7 @@ jobs:
         run: |
           mkdir check && tar -C check -xzf "dist/$ARCHIVE.tar.gz"
           "check/$ARCHIVE/bokehcam" --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.version.outputs.archive }}
           path: |
@@ -72,8 +72,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.archive }}
           path: dist
