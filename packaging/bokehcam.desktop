@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=bokehcam
+Comment=Virtual webcam with background blur
+Exec=@BOKEHCAM_GUI@
+Icon=camera-web
+Categories=AudioVideo;Video;Settings;
+Terminal=false
+StartupWMClass=bokehcam

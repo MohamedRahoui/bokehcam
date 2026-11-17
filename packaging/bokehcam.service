@@ -1,0 +1,12 @@
+# Installed by scripts/install.sh --service (which fills in @BOKEHCAM@).
+[Unit]
+Description=bokehcam virtual webcam
+Documentation=https://github.com/MohamedRahoui/bokehcam
+
+[Service]
+ExecStart=@BOKEHCAM@ run
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
