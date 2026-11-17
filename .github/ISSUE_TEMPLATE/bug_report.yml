@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as described
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `bokehcam doctor`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `bokehcam status`
+      description: While the problem is happening, if bokehcam is running.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >-
+        Output of `bokehcam -v run`, or `journalctl --user -u bokehcam` if it
+        runs as a service.
+      render: text
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Distribution, kernel version, camera model, graphics card.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: bokehcam version
+      description: Output of `bokehcam --version`, or the commit you built.
+    validations:
+      required: true
