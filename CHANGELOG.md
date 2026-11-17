@@ -6,6 +6,11 @@ Notable changes to bokehcam are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The settings window now follows the system's light or dark appearance,
+  instead of always coming up light on Linux.
+
 ## [0.1.0] - 2026-11-17
 
 The first release: an early preview for Linux. Expect rough edges and
