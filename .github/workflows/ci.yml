@@ -29,6 +29,14 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+  scripts:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Lint
+        run: shellcheck scripts/*.sh
+
   dependencies:
     name: Licences and advisories
     runs-on: ubuntu-latest
